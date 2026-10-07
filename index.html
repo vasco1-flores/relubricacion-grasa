@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculadora de Relubricación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Concepto: asistente por pantallas para terreno; una tarea por pantalla, barra de pasos arriba y navegación fija abajo. */
+:root{
+  --bg:#EDF1F3; --surface:#FFFFFF; --surface-2:#F4F7F9; --line:#D2DAE0;
+  --fg:#14202B; --muted:#55636F; --accent:#0B6E8A; --accent-ink:#FFFFFF; --accent-soft:#E2F1F6;
+  --warn-bg:#FFF3D6; --warn-fg:#5C4300; --bad-bg:#FDE4E1; --bad-fg:#7A1A12; --ok-bg:#E1F3E7; --ok-fg:#14502A;
+  --font-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-num:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E151B; --surface:#16212A; --surface-2:#1C2933; --line:#2C3B47;
+    --fg:#E6EDF2; --muted:#9AAAB6; --accent:#4DB4D3; --accent-ink:#062530; --accent-soft:#12303B;
+    --warn-bg:#3A2E0E; --warn-fg:#F3D98B; --bad-bg:#401C18; --bad-fg:#F6B6AE; --ok-bg:#12331F; --ok-fg:#A6E0BC;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E151B; --surface:#16212A; --surface-2:#1C2933; --line:#2C3B47;
+  --fg:#E6EDF2; --muted:#9AAAB6; --accent:#4DB4D3; --accent-ink:#062530; --accent-soft:#12303B;
+  --warn-bg:#3A2E0E; --warn-fg:#F3D98B; --bad-bg:#401C18; --bad-fg:#F6B6AE; --ok-bg:#12331F; --ok-fg:#A6E0BC;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.42;margin:0;padding-inline:16px;padding-block:14px 128px}
+.app{max-width:640px;margin-inline:auto;display:grid;gap:12px}
+.top{display:grid;gap:2px}
+.eyebrow{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-size:1.2rem;line-height:1.2;margin:0;font-weight:600}
+/* Barra de pasos */
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.stepper button{width:100%;min-height:0;padding:6px 2px 4px;border:0;background:none;display:grid;justify-items:center;gap:3px;font-size:.68rem;font-weight:500;color:var(--muted);cursor:pointer}
+.stepper button:disabled{cursor:default;opacity:.55}
+.stepper .dot{width:22px;height:22px;border-radius:999px;display:grid;place-items:center;font-size:.72rem;font-weight:600;border:1.5px solid var(--line);background:var(--surface);color:var(--muted)}
+.stepper .bar{grid-column:1/-1}
+.stepper li.done .dot{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.stepper li.cur .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.stepper li.cur button{color:var(--fg);font-weight:600}
+.progress{height:3px;background:var(--line);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0}
+/* Pantallas */
+.screen{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.screen>h2{margin:0;font-size:1.08rem;font-weight:600;outline:none}
+.screen>.intro{margin:0;color:var(--muted);font-size:.86rem}
+.field{display:grid;gap:4px;min-width:0}
+.lt{font-size:.84rem;font-weight:500}
+.lt small{font-weight:400;color:var(--muted)}
+input[type="text"],select{font:inherit;font-size:16px;min-height:44px;width:100%;min-width:0;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--fg)}
+input[type="text"]{font-family:var(--font-num);font-weight:500}
+input.bad,input.miss{border-color:#C0392B}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inline{display:flex;gap:8px;align-items:flex-end}
+.inline .field{flex:1}
+button{font:inherit;font-size:.88rem;font-weight:600;min-height:44px;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.link{min-height:0;padding:2px 6px;border:0;background:none;color:var(--accent);font-size:.8rem;text-decoration:underline}
+.hint{margin:0;font-size:.79rem;color:var(--muted)}
+details>summary{cursor:pointer;font-weight:600;font-size:.86rem;min-height:32px;display:flex;align-items:center}
+details[open]>summary{margin-bottom:8px}
+/* Pantalla 0: tipos */
+.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.type{position:relative;display:block;min-width:0}
+.type input{position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%;cursor:pointer}
+.type>span{display:grid;gap:4px;height:100%;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.type .thumb{background:#FFFFFF;border-radius:6px;border:1px solid var(--line);height:74px;display:grid;place-items:center;overflow:hidden}
+.type .thumb svg{width:100%;height:100%;display:block}
+.type b{font-size:.9rem}
+.type small{font-size:.75rem;color:var(--muted);line-height:1.3}
+.type input:checked+span{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.type input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+/* Pantalla 1: figura y cotas */
+.geo{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;align-items:center}
+.figbox{background:#FFFFFF;border:1px solid var(--line);border-radius:8px;padding:4px;margin:0}
+.figbox svg{display:block;width:100%;height:auto}
+.fig .hit{fill:transparent;cursor:pointer}
+.fig .dim{cursor:pointer;outline:none}
+.fig .dim .hl{stroke:#0B6E8A;stroke-width:8;stroke-linecap:round;opacity:0}
+.fig .dim.on .hl{opacity:.8}
+.fig .dim .val{fill:#0B6E8A;font-family:var(--font-num);font-size:23px;font-weight:600;paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}
+.fig .dim .lab{fill:#14202B;font-family:var(--font-body);font-size:28px;font-weight:600}
+.fig .dim .dl{stroke:#55636F;stroke-width:1.4}
+.fig .dim .ah{fill:#55636F}
+.fig .dim.on .dl{stroke:#0B6E8A;stroke-width:2.6}
+.fig .dim.on .ah,.fig .dim.on .lab{fill:#0B6E8A}
+.fig .dim:focus-visible .hit{stroke:#0B6E8A;stroke-width:2;stroke-dasharray:5 4}
+.fig .tiny{font-size:13px;fill:#55636F;font-family:var(--font-body)}
+.fig .axis{stroke:#55636F;stroke-width:1;stroke-dasharray:10 4 2 4}
+.dims{display:grid;gap:10px;min-width:0}
+.geo.wide{grid-template-columns:minmax(0,1fr)}
+.geo.wide .figbox{width:100%;max-width:440px;justify-self:center}
+.geo.wide .dims{grid-template-columns:repeat(3,minmax(0,1fr));align-items:end}
+.badge{display:inline-grid;place-items:center;min-width:1.3rem;height:1.3rem;padding-inline:4px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:.78rem;margin-right:3px}
+/* Pantalla 3: preguntas */
+fieldset.q{border:0;margin:0;padding:0 0 12px;min-width:0;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+fieldset.q:last-of-type{border-bottom:0;padding-bottom:0}
+fieldset.q legend{padding:0;margin-bottom:8px;width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:.92rem}
+.sub{font-size:.84rem;font-weight:500;margin:2px 0 0}
+.pill{font-family:var(--font-num);font-size:.78rem;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.pill.set{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.pill.bad{background:var(--bad-bg);color:var(--bad-fg);border-color:transparent}
+.why{margin:0;font-size:.79rem;color:var(--accent)}
+.why:empty{display:none}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:7px}
+.opts.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.opt{position:relative;display:block;min-width:0}
+.opt input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;width:100%;height:100%}
+.opt span{display:grid;gap:1px;align-content:start;height:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.opt b{font-size:.86rem;font-weight:600}
+.opt small{font-size:.75rem;color:var(--muted);line-height:1.28}
+.opt svg{width:30px;height:22px;color:var(--fg)}
+.opt input:checked+span{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.opt input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:.82rem;cursor:pointer}
+.chk input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent);flex:none}
+#q-v-mano{display:grid;gap:8px}
+.safety{font-size:.78rem;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn-fg);margin:0}
+.ksum{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--accent-soft);border-radius:8px;padding:9px 12px;font-size:.86rem}
+.ksum b{font-family:var(--font-num);font-size:1.05rem;color:var(--accent)}
+/* Pantalla 4: resultado */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{background:var(--accent-soft);border-radius:8px;padding:12px;display:grid;gap:1px;min-width:0}
+.tile .k{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tile .v{font-family:var(--font-num);font-weight:600;font-size:1.7rem;line-height:1.15;color:var(--accent);overflow-wrap:anywhere}
+.tile .u{font-size:.8rem;font-weight:500}
+.tile .s{font-size:.74rem;color:var(--muted)}
+dl.kv{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin:0;font-size:.84rem}
+dl.kv dt{color:var(--muted)}
+dl.kv dd{margin:0;font-family:var(--font-num);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+.note{padding:8px 10px;border-radius:8px;font-size:.8rem;background:var(--warn-bg);color:var(--warn-fg)}
+.note.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.note.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.notes{display:grid;gap:7px}
+.datos{display:grid;gap:6px;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.datos h3{margin:0;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.drow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.82rem}
+.drow span{min-width:0}
+ol.steps{padding-left:1.15rem;margin:0;display:grid;gap:9px;font-size:.84rem}
+.f{font-family:var(--font-num);font-size:.78rem;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;display:block;margin-top:3px;overflow-x:auto;white-space:nowrap}
+.evrow{display:grid;grid-template-columns:1fr 78px;gap:8px;align-items:center;font-size:.8rem}
+.evrow input{min-height:38px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.78rem;min-width:440px}
+th,td{text-align:left;padding:5px 7px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+a{color:var(--accent)}
+textarea{font-family:var(--font-num);font-size:.8rem;width:100%;min-height:140px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--fg);padding:8px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+footer{font-size:.74rem;color:var(--muted)}
+/* Navegación fija */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--line);padding:8px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.nav-in{max-width:640px;margin-inline:auto;display:grid;gap:6px}
+.navmsg{margin:0;font-size:.8rem;color:var(--bad-fg);background:var(--bad-bg);border-radius:6px;padding:5px 9px}
+.navmsg:empty{display:none}
+.navbtns{display:flex;gap:8px}
+.navbtns button{flex:1}
+.navbtns button.primary{flex:1.6}
+@media (min-width:700px){
+  body{padding-block:24px 128px}
+  .geo{grid-template-columns:260px minmax(0,1fr)}
+  .geo.wide{grid-template-columns:minmax(0,1fr)}
+  h1{font-size:1.35rem}
+}
+@media (prefers-reduced-motion:no-preference){
+  .screen{animation:entra .18s ease-out}
+  @keyframes entra{from{transform:translateY(6px)}to{transform:none}}
+  .progress i{transition:width .25s}
+}
+</style>
+
+</head>
+<body>
+<main class="app">
+<header class="top">
+  <span class="eyebrow">Relubricación con grasa</span>
+  <h1>Calculadora de Relubricación</h1>
+</header>
+
+<nav aria-label="Pasos">
+  <ol class="stepper" id="stepper"></ol>
+  <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+</nav>
+
+<!-- Pantalla 0 -->
+<section class="screen" data-step="0" aria-labelledby="t0">
+  <h2 id="t0" tabindex="-1">¿Qué tipo de rodamiento es?</h2>
+  <p class="intro">Elija el tipo. Si no lo sabe, revise la designación grabada en el aro o en la placa del equipo.</p>
+  <div class="types" id="types"></div>
+</section>
+
+<!-- Pantalla 1 -->
+<section class="screen" data-step="1" aria-labelledby="t1" hidden>
+  <h2 id="t1" tabindex="-1">Cotas del rodamiento</h2>
+  <p class="intro" id="tipo-nombre"></p>
+  <div class="geo" id="geo">
+    <figure class="figbox fig" id="figwrap"></figure>
+    <div class="dims">
+      <label class="field" for="d"><span class="lt"><span class="badge">d</span>interior <small>[mm]</small></span><input type="text" id="d" inputmode="decimal" autocomplete="off" placeholder="p. ej. 800"></label>
+      <label class="field" for="D"><span class="lt"><span class="badge">D</span>exterior <small>[mm]</small></span><input type="text" id="D" inputmode="decimal" autocomplete="off" placeholder="p. ej. 1060"></label>
+      <label class="field" for="B"><span class="lt"><span class="badge">B</span>ancho <small>[mm]</small></span><input type="text" id="B" inputmode="decimal" autocomplete="off" placeholder="p. ej. 258"></label>
+    </div>
+  </div>
+  <p class="hint">Toque una cota en la figura o un campo: la cota activa se resalta. Tome d, D y B del catálogo con la designación del rodamiento (ej. 249/800-B-MB).</p>
+  <p class="hint" id="fignote"></p>
+  <p class="hint" id="conhint" hidden>Rodamiento cónico: el catálogo entrega B, C y T (ancho total). Las fuentes consultadas no precisan cuál usa la fórmula de dosificación; confírmelo con el fabricante.</p>
+</section>
+
+<!-- Pantalla 2 -->
+<section class="screen" data-step="2" aria-labelledby="t2" hidden>
+  <h2 id="t2" tabindex="-1">Operación</h2>
+  <label class="field" for="n"><span class="lt">Velocidad del eje del rodamiento <small>[rpm]</small></span><input type="text" id="n" inputmode="decimal" autocomplete="off" placeholder="p. ej. 1,5"></label>
+  <p class="hint">Velocidad del eje que gira en el rodamiento, no la del motor si hay reductor. De la hoja de datos o con tacómetro.</p>
+  <div class="inline">
+    <label class="field" for="h"><span class="lt">Horas de operación por semana <small>[h/sem]</small></span><input type="text" id="h" inputmode="decimal" autocomplete="off" placeholder="máx. 168"></label>
+    <button type="button" id="h168" title="24 h × 7 días">Continua 168</button>
+  </div>
+  <label class="field" for="gun"><span class="lt">Gramos por embolada de su engrasadora <small>(opcional) [g]</small></span><input type="text" id="gun" inputmode="decimal" autocomplete="off" placeholder="p. ej. 1,6"></label>
+  <p class="hint">Para saberlo: dé 10 emboladas sobre un recipiente, pese la grasa y divida por 10.</p>
+</section>
+
+<!-- Pantalla 3 -->
+<section class="screen" data-step="3" aria-labelledby="t3" hidden>
+  <h2 id="t3" tabindex="-1">Condiciones del lugar</h2>
+  <p class="intro">Cada respuesta asigna un factor entre 0 y 1 que acorta el intervalo. Si duda entre dos opciones, elija la más desfavorable.</p>
+
+  <fieldset class="q" id="q-t">
+    <legend><span>Temperatura</span><span class="pill" id="pill-t">sin dato</span></legend>
+    <label class="field" for="T"><span class="lt">Temperatura de la carcasa del rodamiento <small>[°C]</small></span><input type="text" id="T" inputmode="decimal" autocomplete="off" placeholder="p. ej. 45"></label>
+    <p class="hint">Con termómetro infrarrojo sobre la carcasa y la máquina en marcha normal. El rodamiento suele estar algo más caliente que la carcasa.</p>
+    <p class="why" id="why-t"></p>
+  </fieldset>
+
+  <fieldset class="q" id="q-c">
+    <legend><span>Suciedad y polvo</span><span class="pill" id="pill-c">sin respuesta</span></legend>
+    <p class="sub">¿Qué suciedad hay alrededor del rodamiento?</p>
+    <div class="opts three">
+      <label class="opt"><input type="radio" name="c_tipo" value="ninguna"><span><b>Ninguna</b><small>Lugar limpio, sin polvo visible</small></span></label>
+      <label class="opt"><input type="radio" name="c_tipo" value="blanda"><span><b>Blanda</b><small>Fibra, pelusa, aserrín, papel</small></span></label>
+      <label class="opt"><input type="radio" name="c_tipo" value="aspera"><span><b>Áspera</b><small>Tierra, arena, cal, cemento, ceniza</small></span></label>
+    </div>
+    <p class="hint">Frote un poco entre los dedos: si raspa como arena, es áspera (abrasiva).</p>
+    <div id="q-c-cant" hidden>
+      <p class="sub">¿Cuánta se acumula sobre la carcasa?</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="c_cant" value="poca"><span><b>Poca</b><small>Capa delgada, se limpia fácil</small></span></label>
+        <label class="opt"><input type="radio" name="c_cant" value="mucha"><span><b>Mucha</b><small>Se junta en pocos días o forma costra</small></span></label>
+      </div>
+    </div>
+    <div id="q-c-sello" hidden>
+      <p class="sub">¿El descanso tiene sello adicional en buen estado?</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="c_sello" value="si"><span><b>Sí</b><small>Laberinto, doble labio o sello purgado con grasa</small></span></label>
+        <label class="opt"><input type="radio" name="c_sello" value="no"><span><b>No o no sé</b><small>Se toma el caso más desfavorable</small></span></label>
+      </div>
+    </div>
+    <p class="why" id="why-c"></p>
+  </fieldset>
+
+  <fieldset class="q" id="q-m">
+    <legend><span>Agua y humedad</span><span class="pill" id="pill-m">sin respuesta</span></legend>
+    <p class="sub">¿Cuánta agua llega al rodamiento?</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="m" value="seco"><span><b>Seco</b><small>Zona techada, sin agua ni condensación</small></span></label>
+      <label class="opt"><input type="radio" name="m" value="humedo"><span><b>Húmedo</b><small>Condensación, goteo ocasional o humedad relativa 80–90 %</small></span></label>
+      <label class="opt"><input type="radio" name="m" value="vapor"><span><b>Vapor o lavado</b><small>Vapor constante, rocío o lavado con manguera</small></span></label>
+      <label class="opt"><input type="radio" name="m" value="agua"><span><b>Agua directa</b><small>Le salpica agua, licor o pasta, o queda sumergido</small></span></label>
+    </div>
+    <p class="why" id="why-m"></p>
+  </fieldset>
+
+  <fieldset class="q" id="q-v">
+    <legend><span>Vibración</span><span class="pill" id="pill-v">sin respuesta</span></legend>
+    <p class="sub">¿Tiene una medición de vibración de este descanso?</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="v_med" value="si"><span><b>Sí</b><small>Tengo el valor en mm/s</small></span></label>
+      <label class="opt"><input type="radio" name="v_med" value="no"><span><b>No</b><small>La evalúo al tacto</small></span></label>
+    </div>
+    <div id="q-v-val" hidden>
+      <label class="field" for="v_val"><span class="lt">Velocidad de vibración global <small>[mm/s]</small></span><input type="text" id="v_val" inputmode="decimal" autocomplete="off" placeholder="p. ej. 3,2"></label>
+      <p class="hint">Use el valor del colector o analizador. El criterio no indica si es RMS o pico; ISO 20816 usa RMS.</p>
+    </div>
+    <div id="q-v-mano" hidden>
+      <p class="safety">Apoye la mano solo sobre la carcasa fija. Nunca toque ejes, acoplamientos ni piezas en giro, y cumpla los procedimientos de seguridad de la planta.</p>
+      <div class="opts three">
+        <label class="opt"><input type="radio" name="v_mano" value="nada"><span><b>No se siente</b><small>O apenas se nota</small></span></label>
+        <label class="opt"><input type="radio" name="v_mano" value="clara"><span><b>Vibra</b><small>Se siente con claridad</small></span></label>
+        <label class="opt"><input type="radio" name="v_mano" value="fuerte"><span><b>Vibra fuerte</b><small>O se sienten golpes</small></span></label>
+      </div>
+    </div>
+    <label class="chk"><input type="checkbox" id="v_imp"><span>La máquina trabaja con impactos o cargas de choque (chancadora, harnero, molino de martillos)</span></label>
+    <p class="why" id="why-v"></p>
+  </fieldset>
+
+  <fieldset class="q" id="q-p">
+    <legend><span>Posición del eje</span><span class="pill" id="pill-p">sin respuesta</span></legend>
+    <div class="opts three">
+      <label class="opt"><input type="radio" name="p" value="hor"><span><svg viewBox="0 0 30 22" aria-hidden="true"><line x1="2" y1="11" x2="28" y2="11" stroke="currentColor" stroke-width="2"/><rect x="7" y="6" width="5" height="10" fill="currentColor"/><rect x="18" y="6" width="5" height="10" fill="currentColor"/></svg><b>Horizontal</b><small>Eje acostado</small></span></label>
+      <label class="opt"><input type="radio" name="p" value="inc"><span><svg viewBox="0 0 30 22" aria-hidden="true"><line x1="5" y1="20" x2="25" y2="2" stroke="currentColor" stroke-width="2"/><rect x="9" y="10" width="5" height="5" fill="currentColor" transform="rotate(-42 11.5 12.5)"/><rect x="16" y="4" width="5" height="5" fill="currentColor" transform="rotate(-42 18.5 6.5)"/></svg><b>Inclinado</b><small>Ángulo intermedio</small></span></label>
+      <label class="opt"><input type="radio" name="p" value="ver"><span><svg viewBox="0 0 30 22" aria-hidden="true"><line x1="15" y1="1" x2="15" y2="21" stroke="currentColor" stroke-width="2"/><rect x="10" y="4" width="10" height="4" fill="currentColor"/><rect x="10" y="14" width="10" height="4" fill="currentColor"/></svg><b>Vertical</b><small>Eje de pie</small></span></label>
+    </div>
+    <p class="why" id="why-p"></p>
+  </fieldset>
+
+  <div class="ksum"><span>K<sub>total</sub> = F<sub>t</sub>·F<sub>c</sub>·F<sub>m</sub>·F<sub>v</sub>·F<sub>p</sub></span><b id="ksum">—</b></div>
+
+  <details>
+    <summary>Opciones avanzadas</summary>
+    <div style="display:grid;gap:10px">
+      <label class="field" for="tmet"><span class="lt">Método del factor de temperatura</span>
+        <select id="tmet">
+          <option value="skf" selected>Regla SKF: mitad por cada 15 °C sobre 70 °C</option>
+          <option value="tabla">Escalones del criterio aportado</option>
+        </select>
+      </label>
+      <p class="hint">Valores de cada categoría (criterio aportado, no normalizado). Puede editarlos entre 0,01 y 1,00.</p>
+      <div id="editpanel" style="display:grid;gap:7px"></div>
+    </div>
+  </details>
+</section>
+
+<!-- Pantalla 4 -->
+<section class="screen" data-step="4" aria-labelledby="t4" hidden>
+  <h2 id="t4" tabindex="-1">Resultado</h2>
+  <div id="out" aria-live="polite" style="display:grid;gap:12px"></div>
+  <details>
+    <summary>Origen de los valores</summary>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Valor</th><th>Origen</th><th>Conf.</th></tr></thead>
+      <tbody>
+        <tr><td>G<sub>p</sub> = 0,005·D·B</td><td><a href="https://www.mobil.com/en/lubricants/for-businesses/industrial/lubricant-expertise/resources/determining-relubrication-intervals">Mobil</a>; <a href="https://www.brookesbell.com/fileadmin/uploads/brookesbell/Documents/Slection_of_rolling_bearings_-_lubrication.pdf">extracto Tribology Handbook</a></td><td>7 / 6</td></tr>
+        <tr><td>t<sub>f</sub> = K<sub>r</sub>·[14·10⁶/(n·√d) − 4d]; K<sub>r</sub> = 1 (esféricos, cónicos), 5 (cilíndricos, agujas), 10 (bolas radiales)</td><td>Extracto Tribology Handbook. Forma exacta reconstruida por Claude; verificar en el catálogo SKF.</td><td>6</td></tr>
+        <tr><td>F<sub>t</sub> por regla SKF</td><td><a href="https://cdn.skfmediahub.skf.com/api/public/0901d1968033a3ee/pdf_preview_medium/0901d1968033a3ee_pdf_preview_medium.pdf">Nota técnica SKF</a></td><td>9</td></tr>
+        <tr><td>Tope de 30 000 h</td><td><a href="https://www.lube-media.com/wp-content/uploads/2017/11/Lube-Tech044-SKFNEWTOOLFORESTIMATINGGREASELIFEINLUBRICATED-FOR-LIFEDEEPGROOVEBALLBEARINGSeta.pdf">SKF, Lube-Tech N° 44</a></td><td>8</td></tr>
+        <tr><td>F<sub>c</sub>, F<sub>m</sub>, F<sub>v</sub>, F<sub>p</sub> y escalones de F<sub>t</sub></td><td>Criterio aportado por el usuario (fuentes originales: Scribd, Studocu, proveedor de grasas). No pertenece a DIN 51825, que clasifica grasas K. Las preguntas de terreno son traducción de Claude.</td><td>2–4</td></tr>
+        <tr><td>ν<sub>1</sub> requerida</td><td>Fórmula SKF / ISO 281, de memoria de Claude, no verificada en esta sesión.</td><td>—</td></tr>
+        <tr><td>Figuras</td><td>Rodillos esféricos: figura aportada por el usuario. Demás tipos: esquemas de Claude, sin escala.</td><td>—</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </details>
+  <footer>Herramienta de apoyo para estimar. Confirme el intervalo y la grasa con la ficha del fabricante (SKF, Schaeffler/FAG) y con análisis de la grasa en servicio. Normas de referencia: ISO 15, ISO 281, ISO 20816, DIN 51825.</footer>
+</section>
+</main>
+
+<div class="nav" id="nav">
+  <div class="nav-in">
+    <p class="navmsg" id="navmsg" role="status"></p>
+    <div class="navbtns">
+      <button type="button" id="btn-back">Atrás</button>
+      <button type="button" id="btn-alt" hidden>Ver ejemplo</button>
+      <button type="button" id="btn-next" class="primary">Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var parse = function(v){ var x = parseFloat(String(v).trim().replace(',', '.')); return isFinite(x) ? x : NaN; };
+  var fmt = function(x, dec){ return x.toLocaleString('es-CL', {minimumFractionDigits: dec, maximumFractionDigits: dec}); };
+  var CAP_H = 30000;
+  var STEPS = ['Tipo', 'Cotas', 'Operación', 'Terreno', 'Resultado'];
+  var step = 0, isExample = false, uid = 0;
+
+  var TIPOS = {
+    esf: {n:'Rodillos esféricos', K:1, desc:'Dos hileras, autoalineable. Lavadores, prensas, rodillos.'},
+    cil: {n:'Rodillos cilíndricos', K:5, desc:'Alta carga radial. Motores grandes, reductores.'},
+    con: {n:'Rodillos cónicos', K:1, desc:'Carga radial y axial combinada. Ruedas, reductores.'},
+    agu: {n:'Rodillos de agujas', K:5, desc:'Sección delgada, poco espacio radial.'},
+    bol: {n:'Rígido de bolas', K:10, desc:'Uso general. Motores eléctricos, bombas, ventiladores.'}
+  };
+  var FACT = {
+    fc: {title:'Suciedad y polvo (F_c)', opts:[['Limpio o poca suciedad no abrasiva', 0.9],['Mucha suciedad no abrasiva', 0.6],['Suciedad abrasiva moderada', 0.3],['Suciedad abrasiva extrema, sin sello adicional', 0.1]]},
+    fm: {title:'Agua y humedad (F_m)', opts:[['Seco (HR < 80 %)', 0.9],['Húmedo (HR 80–90 %) o condensación menor', 0.7],['Vapor constante, rocío o lavados periódicos', 0.4],['Salpicadura directa o sumergido', 0.1]]},
+    fv: {title:'Vibración (F_v)', opts:[['Suave (< 5 mm/s)', 0.9],['Moderada (5 a 10 mm/s)', 0.6],['Severa, impactos o cargas de choque', 0.3]]},
+    fp: {title:'Posición del eje (F_p)', opts:[['Horizontal', 1.0],['Inclinado (45°)', 0.7],['Vertical', 0.5]]}
+  };
+  var vals = {};
+  Object.keys(FACT).forEach(function(k){ vals[k] = FACT[k].opts.map(function(o){ return o[1]; }); });
+
+  function radio(name){ var r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : ''; }
+  function setRadio(name, v){ document.querySelectorAll('input[name="' + name + '"]').forEach(function(r){ r.checked = (r.value === v); }); }
+
+  /* ---------- Figuras ---------- */
+  var INK = 'stroke="#14202B" stroke-width="1.5" stroke-linejoin="round"';
+  function half(t, hid){
+    var R = 'fill="url(#' + hid + ')" ' + INK, W = 'fill="#FFFFFF" ' + INK;
+    if (t === 'esf') return {dTop:94, g:
+      '<path d="M130 30 H270 V58 Q200 40 130 58 Z" ' + R + '/>' +
+      '<rect x="146" y="51" width="44" height="22" rx="10" transform="rotate(-10 168 62)" ' + W + '/>' +
+      '<rect x="210" y="51" width="44" height="22" rx="10" transform="rotate(10 232 62)" ' + W + '/>' +
+      '<path d="M130 94 V79 L192 68 V63 H208 V68 L270 79 V94 Z" ' + R + '/>'};
+    if (t === 'cil') return {dTop:94, g:
+      '<path d="M130 30 H270 V60 H258 V52 H142 V60 H130 Z" ' + R + '/>' +
+      '<rect x="146" y="52" width="108" height="20" rx="3" ' + W + '/>' +
+      '<path d="M130 94 V72 H270 V94 Z" ' + R + '/>'};
+    if (t === 'con') return {dTop:94, g:
+      '<path d="M130 30 H270 V48 L130 66 Z" ' + R + '/>' +
+      '<polygon points="146,64 254,50 254,66 146,82" ' + W + '/>' +
+      '<path d="M130 94 V84 L270 64 V94 Z" ' + R + '/>' +
+      '<path d="M130 84 V70 H142 V82.3 Z" ' + R + '/>'};
+    if (t === 'agu') return {dTop:80, g:
+      '<path d="M130 30 H270 V50 H264 V44 H136 V50 H130 Z" ' + R + '/>' +
+      '<rect x="138" y="44" width="124" height="13" rx="5" ' + W + '/>' +
+      '<path d="M130 80 V57 H270 V80 Z" ' + R + '/>'};
+    return {dTop:94, g:
+      '<path d="M130 30 H270 V52 H224 Q200 24 176 52 H130 Z" ' + R + '/>' +
+      '<circle cx="200" cy="62" r="21" ' + W + '/>' +
+      '<path d="M130 94 V72 H176 Q200 100 224 72 H270 V94 Z" ' + R + '/>'};
+  }
+  function hatch(hid){
+    return '<defs><pattern id="' + hid + '" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#55636F" stroke-width="1"/></pattern></defs>';
+  }
+  function thumb(t){
+    var hid = 'h' + (uid++), h = half(t, hid);
+    return '<svg viewBox="122 24 156 76" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + hatch(hid) + h.g + '</svg>';
+  }
+  function dimGroup(k, label, hit, ext, line, arrows, labPos, valAttr){
+    return '<g class="dim" id="dim-' + k + '" role="button" tabindex="0" aria-label="Ingresar ' + label + '">' +
+      '<rect ' + hit + ' class="hit"/>' + ext + line + arrows + labPos +
+      '<text ' + valAttr + ' class="val" id="v-' + k + '"></text></g>';
+  }
+  function figure(t){
+    var hid = 'h' + (uid++), h = half(t, hid), a = h.dTop, b = 380 - a;
+    var svg = '<svg viewBox="0 0 420 404" role="img" aria-label="Esquema de ' + TIPOS[t].n.toLowerCase() + ' con cotas d, D y B">' + hatch(hid) +
+      '<g>' + h.g + '</g><g transform="matrix(1 0 0 -1 0 380)">' + h.g + '</g>' +
+      '<line x1="100" y1="190" x2="300" y2="190" class="axis"/>' +
+      '<text x="200" y="184" text-anchor="middle" class="tiny">eje de giro</text>';
+    svg += dimGroup('d', 'd, diámetro interior', 'x="4" y="' + (a - 6) + '" width="90" height="' + (b - a + 12) + '"',
+      '<line x1="130" y1="' + a + '" x2="78" y2="' + a + '" class="dl"/><line x1="130" y1="' + b + '" x2="78" y2="' + b + '" class="dl"/>',
+      '<line x1="84" y1="' + (a + 10) + '" x2="84" y2="' + (b - 10) + '" class="dl"/><line x1="84" y1="' + a + '" x2="84" y2="' + b + '" class="hl"/>',
+      '<polygon points="84,' + a + ' 80,' + (a + 10) + ' 88,' + (a + 10) + '" class="ah"/><polygon points="84,' + b + ' 80,' + (b - 10) + ' 88,' + (b - 10) + '" class="ah"/>',
+      '<text x="26" y="200" text-anchor="middle" class="lab">d</text>',
+      'transform="translate(68 190) rotate(-90)" text-anchor="middle"');
+    svg += dimGroup('D', 'D, diámetro exterior', 'x="316" y="24" width="104" height="332"',
+      '<line x1="270" y1="30" x2="333" y2="30" class="dl"/><line x1="270" y1="350" x2="333" y2="350" class="dl"/>',
+      '<line x1="325" y1="40" x2="325" y2="340" class="dl"/><line x1="325" y1="30" x2="325" y2="350" class="hl"/>',
+      '<polygon points="325,30 321,40 329,40" class="ah"/><polygon points="325,350 321,340 329,340" class="ah"/>',
+      '<text x="398" y="200" text-anchor="middle" class="lab">D</text>',
+      'transform="translate(356 190) rotate(-90)" text-anchor="middle"');
+    svg += '<g class="dim" id="dim-B" role="button" tabindex="0" aria-label="Ingresar B, ancho"><rect x="110" y="352" width="180" height="52" class="hit"/>' +
+      '<line x1="130" y1="350" x2="130" y2="376" class="dl"/><line x1="270" y1="350" x2="270" y2="376" class="dl"/>' +
+      '<line x1="140" y1="370" x2="260" y2="370" class="dl"/><line x1="130" y1="370" x2="270" y2="370" class="hl"/>' +
+      '<polygon points="130,370 140,366 140,374" class="ah"/><polygon points="270,370 260,366 260,374" class="ah"/>' +
+      '<text x="200" y="400" text-anchor="middle"><tspan class="lab" font-size="24">B</tspan><tspan class="val" id="v-B" dx="10"></tspan></text></g>';
+    return svg + '</svg>';
+  }
+  function renderFigure(){
+    var t = radio('tipo') || 'esf';
+    $('figwrap').innerHTML = figure(t);
+    $('tipo-nombre').textContent = TIPOS[t].n + '. Ingrese las tres cotas del catálogo.';
+    $('fignote').textContent = 'Esquema de referencia, sin escala.';
+    $('conhint').hidden = t !== 'con';
+    $('geo').classList.add('wide');
+    ['d','D','B'].forEach(function(k){
+      var g = $('dim-' + k), inp = $(k);
+      g.addEventListener('click', function(){ inp.focus(); });
+      g.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); inp.focus(); } });
+      g.addEventListener('focus', function(){ g.classList.add('on'); });
+      g.addEventListener('blur', function(){ if (document.activeElement !== inp) g.classList.remove('on'); });
+      updVal(k);
+    });
+  }
+  function updVal(k){
+    var el = $('v-' + k); if (!el) return;
+    var v = parse($(k).value);
+    el.textContent = v > 0 ? fmt(v, v % 1 ? 1 : 0) + ' mm' : '';
+  }
+  ['d','D','B'].forEach(function(k){
+    $(k).addEventListener('focus', function(){ var g = $('dim-' + k); if (g) g.classList.add('on'); });
+    $(k).addEventListener('blur', function(){ var g = $('dim-' + k); if (g) g.classList.remove('on'); });
+  });
+
+  /* ---------- Pantalla 0 ---------- */
+  (function(){
+    var html = '';
+    Object.keys(TIPOS).forEach(function(k){
+      html += '<label class="type"><input type="radio" name="tipo" value="' + k + '"><span><span class="thumb">' + thumb(k) + '</span><b>' + TIPOS[k].n + '</b><small>' + TIPOS[k].desc + '</small></span></label>';
+    });
+    $('types').innerHTML = html;
+  })();
+
+  /* ---------- Factores ---------- */
+  function buildEditPanel(){
+    var p = $('editpanel'), html = '';
+    Object.keys(FACT).forEach(function(k){
+      html += '<strong style="font-size:.8rem">' + FACT[k].title + '</strong>';
+      FACT[k].opts.forEach(function(o, i){
+        html += '<div class="evrow"><label for="ev_' + k + '_' + i + '">' + o[0] + '</label><input type="text" id="ev_' + k + '_' + i + '" inputmode="decimal" value="' + fmt(vals[k][i], 2) + '"></div>';
+      });
+    });
+    p.innerHTML = html;
+    Object.keys(FACT).forEach(function(k){
+      FACT[k].opts.forEach(function(o, i){
+        $('ev_' + k + '_' + i).addEventListener('input', function(e){
+          var v = parse(e.target.value);
+          if (v >= 0.01 && v <= 1){ vals[k][i] = v; e.target.classList.remove('bad'); paint(); }
+          else e.target.classList.add('bad');
+        });
+      });
+    });
+  }
+  function ftCalc(T, met){
+    if (met === 'skf'){
+      if (T <= 70) return {v:1, why:'Hasta 70 °C la temperatura no acorta el intervalo.'};
+      return {v:Math.pow(2, -(T - 70) / 15), why:'Sobre 70 °C el intervalo se reduce a la mitad por cada 15 °C (' + fmt(T - 70, 1) + ' °C sobre el límite).'};
+    }
+    if (T < 38) return {v:NaN, bad:true, why:'El criterio por escalones no define valor bajo 38 °C. Use la regla SKF en Opciones avanzadas.'};
+    if (T <= 65) return {v:0.9, why:'Escalón 38–65 °C.'};
+    if (T <= 80) return {v:0.5, why:'Escalón 66–80 °C.'};
+    if (T < 94) return {v:0.2, why:'Escalón 81–93 °C.'};
+    return {v:0.1, why:'Escalón ≥ 94 °C.'};
+  }
+  function factors(){
+    var F = {t:null, c:null, m:null, v:null, p:null};
+    var T = parse($('T').value);
+    if (!isNaN(T)) F.t = ftCalc(T, $('tmet').value);
+    var ct = radio('c_tipo'), cq = radio('c_cant'), cs = radio('c_sello');
+    $('q-c-cant').hidden = !(ct === 'blanda' || ct === 'aspera');
+    $('q-c-sello').hidden = !(ct === 'aspera' && cq === 'mucha');
+    var ci = null, cw = '';
+    if (ct === 'ninguna'){ ci = 0; cw = 'Lugar limpio.'; }
+    else if (ct === 'blanda' && cq === 'poca'){ ci = 0; cw = 'Poca suciedad blanda: se trata como limpio.'; }
+    else if (ct === 'blanda' && cq === 'mucha'){ ci = 1; cw = 'Mucha suciedad no abrasiva.'; }
+    else if (ct === 'aspera' && cq === 'poca'){ ci = 2; cw = 'Suciedad abrasiva en cantidad moderada.'; }
+    else if (ct === 'aspera' && cq === 'mucha' && cs === 'si'){ ci = 2; cw = 'Mucha suciedad abrasiva con sello adicional: se trata como moderada.'; }
+    else if (ct === 'aspera' && cq === 'mucha' && cs === 'no'){ ci = 3; cw = 'Mucha suciedad abrasiva sin sello adicional: caso extremo.'; }
+    if (ci !== null) F.c = {v:vals.fc[ci], why:cw};
+    var mm = {seco:[0,'Ambiente seco.'], humedo:[1,'Humedad alta o condensación.'], vapor:[2,'Vapor, rocío o lavados.'], agua:[3,'Agua directa o sumergido.']}[radio('m')];
+    if (mm) F.m = {v:vals.fm[mm[0]], why:mm[1]};
+    var vm = radio('v_med'), imp = $('v_imp').checked;
+    $('q-v-val').hidden = vm !== 'si';
+    $('q-v-mano').hidden = vm !== 'no';
+    var vi = null, vw = '';
+    if (imp){ vi = 2; vw = 'Trabaja con impactos o cargas de choque: vibración severa.'; }
+    else if (vm === 'si'){
+      var x = parse($('v_val').value);
+      if (x >= 0){
+        if (x < 5){ vi = 0; vw = fmt(x, 1) + ' mm/s: menor que 5 mm/s.'; }
+        else if (x <= 10){ vi = 1; vw = fmt(x, 1) + ' mm/s: entre 5 y 10 mm/s.'; }
+        else { vi = 2; vw = fmt(x, 1) + ' mm/s: sobre 10 mm/s se trata como severa (el criterio no fija un límite numérico).'; }
+      }
+    } else if (vm === 'no'){
+      var hm = {nada:[0,'No se siente al tacto: operación suave.'], clara:[1,'Se siente vibrar: vibración moderada.'], fuerte:[2,'Vibra fuerte o golpea: vibración severa.']}[radio('v_mano')];
+      if (hm){ vi = hm[0]; vw = hm[1]; }
+    }
+    if (vi !== null) F.v = {v:vals.fv[vi], why:vw};
+    var pm = {hor:[0,'Eje horizontal.'], inc:[1,'Eje inclinado: el criterio solo define 45°; se usa ese valor.'], ver:[2,'Eje vertical: la grasa tiende a escurrir hacia abajo.']}[radio('p')];
+    if (pm) F.p = {v:vals.fp[pm[0]], why:pm[1]};
+    return F;
+  }
+  function paint(){
+    var F = factors();
+    ['t','c','m','v','p'].forEach(function(k){
+      var pill = $('pill-' + k), why = $('why-' + k), f = F[k];
+      if (!f){ pill.className = 'pill'; pill.textContent = k === 't' ? 'sin dato' : 'sin respuesta'; why.textContent = ''; return; }
+      if (f.bad){ pill.className = 'pill bad'; pill.textContent = 'F_' + k + ' sin valor'; why.textContent = f.why; return; }
+      pill.className = 'pill set'; pill.textContent = 'F_' + k + ' = ' + fmt(f.v, 2); why.textContent = f.why;
+    });
+    var all = ['t','c','m','v','p'].every(function(k){ return F[k] && !F[k].bad; });
+    $('ksum').textContent = all ? fmt(F.t.v * F.c.v * F.m.v * F.v.v * F.p.v, 3) : '—';
+    return F;
+  }
+
+  /* ---------- Validación por pantalla ---------- */
+  function missing(s){
+    var m = [];
+    if (s === 0){ if (!radio('tipo')) m.push('elija un tipo de rodamiento'); }
+    if (s === 1){
+      var d = parse($('d').value), D = parse($('D').value), B = parse($('B').value);
+      if (!(d > 0)) m.push('d');
+      if (!(D > 0)) m.push('D');
+      if (!(B > 0)) m.push('B');
+      if (d > 0 && D > 0 && !(D > d)) m.push('D debe ser mayor que d');
+    }
+    if (s === 2){
+      var n = parse($('n').value), h = parse($('h').value), g = $('gun').value.trim();
+      if (!(n > 0)) m.push('velocidad');
+      if (!(h > 0)) m.push('horas por semana');
+      else if (h > 168) m.push('horas por semana no puede superar 168');
+      if (g && !(parse(g) > 0)) m.push('gramos por embolada no válido');
+    }
+    if (s === 3){
+      var F = factors();
+      if (!F.t) m.push('temperatura');
+      else if (F.t.bad) m.push('temperatura fuera del criterio por escalones');
+      if (!F.c) m.push('suciedad');
+      if (!F.m) m.push('humedad');
+      if (!F.v) m.push('vibración');
+      if (!F.p) m.push('posición del eje');
+    }
+    return m;
+  }
+  function firstInvalid(upTo){ for (var s = 0; s < upTo; s++){ if (missing(s).length) return s; } return -1; }
+
+  /* ---------- Navegación ---------- */
+  function renderStepper(){
+    var html = '';
+    STEPS.forEach(function(lbl, i){
+      var reachable = i <= step || firstInvalid(i) === -1;
+      var cls = i === step ? 'cur' : (i < step || (reachable && !missing(i).length && i < 4) ? 'done' : '');
+      html += '<li class="' + cls + '"><button type="button" data-go="' + i + '"' + (reachable ? '' : ' disabled') + (i === step ? ' aria-current="step"' : '') + '><span class="dot">' + (i < step ? '✓' : i + 1) + '</span>' + lbl + '</button></li>';
+    });
+    $('stepper').innerHTML = html;
+    $('prog').style.width = (step / (STEPS.length - 1) * 100) + '%';
+  }
+  function renderNav(){
+    $('btn-back').hidden = step === 0;
+    $('btn-alt').hidden = step !== 0;
+    var nx = $('btn-next');
+    nx.textContent = step === 3 ? 'Ver resultado' : step === 4 ? 'Nuevo cálculo' : 'Siguiente';
+    nx.dataset.confirm = '';
+  }
+  function go(s, fromUser){
+    if (s > step){
+      var bad = firstInvalid(s);
+      if (bad !== -1 && bad < s){
+        if (bad !== step) s = bad;
+        else { $('navmsg').textContent = 'Falta: ' + missing(step).join(', ') + '.'; markMissing(); return; }
+      }
+    }
+    step = s;
+    $('navmsg').textContent = '';
+    document.querySelectorAll('.screen').forEach(function(sc){ sc.hidden = +sc.dataset.step !== step; });
+    if (step === 1) renderFigure();
+    if (step === 3) paint();
+    if (step === 4) renderResult();
+    renderStepper(); renderNav();
+    window.scrollTo(0, 0);
+    if (fromUser){ var h = document.querySelector('.screen[data-step="' + step + '"] h2'); if (h) h.focus({preventScroll:true}); }
+  }
+  function markMissing(){
+    if (step === 1) ['d','D','B'].forEach(function(k){ $(k).classList.toggle('miss', !(parse($(k).value) > 0)); });
+    if (step === 2) ['n','h'].forEach(function(k){ $(k).classList.toggle('miss', !(parse($(k).value) > 0)); });
+  }
+  $('stepper').addEventListener('click', function(e){ var b = e.target.closest('button[data-go]'); if (b && !b.disabled) go(+b.dataset.go, true); });
+  $('btn-back').addEventListener('click', function(){ if (step > 0) go(step - 1, true); });
+  $('btn-next').addEventListener('click', function(){
+    if (step < 4) { go(step + 1, true); return; }
+    var nx = $('btn-next');
+    if (nx.dataset.confirm !== '1'){ nx.dataset.confirm = '1'; nx.textContent = '¿Borrar todo? Toque de nuevo'; setTimeout(function(){ if (step === 4){ nx.dataset.confirm = ''; nx.textContent = 'Nuevo cálculo'; } }, 3500); return; }
+    clearAll(); isExample = false; go(0, true);
+  });
+  $('btn-alt').addEventListener('click', loadExample);
+  $('h168').addEventListener('click', function(){ $('h').value = '168'; onUser(); });
+
+  function onUser(e){
+    isExample = false;
+    if (e && e.target && e.target.classList) e.target.classList.remove('miss');
+    ['d','D','B'].forEach(updVal);
+    if (step === 3) paint();
+    if ($('navmsg').textContent && !missing(step).length) $('navmsg').textContent = '';
+    renderStepper();
+  }
+  document.querySelector('main').addEventListener('input', onUser);
+  document.querySelector('main').addEventListener('change', onUser);
+
+  function clearAll(){
+    ['d','D','B','n','h','gun','T','v_val'].forEach(function(id){ $(id).value = ''; $(id).classList.remove('miss'); });
+    ['tipo','c_tipo','c_cant','c_sello','m','v_med','v_mano','p'].forEach(function(nm){ setRadio(nm, '__'); });
+    $('v_imp').checked = false;
+  }
+  function loadExample(){
+    clearAll();
+    setRadio('tipo', 'esf');
+    $('d').value = '1060'; $('D').value = '1400'; $('B').value = '335';
+    $('n').value = '1,5'; $('h').value = '168'; $('T').value = '45';
+    setRadio('c_tipo', 'blanda'); setRadio('c_cant', 'mucha');
+    setRadio('m', 'vapor'); setRadio('v_med', 'no'); setRadio('v_mano', 'nada'); setRadio('p', 'hor');
+    isExample = true;
+    paint();
+    go(4, true);
+  }
+
+  /* ---------- Resultado ---------- */
+  function renderResult(){
+    var out = $('out'), F = paint();
+    var tipo = radio('tipo'), d = parse($('d').value), D = parse($('D').value), B = parse($('B').value);
+    var n = parse($('n').value), h = parse($('h').value), gun = parse($('gun').value), T = parse($('T').value);
+    var Kr = TIPOS[tipo].K, Gp = 0.005 * D * B;
+    var dm = (d + D) / 2, sd = Math.sqrt(d);
+    var t1 = 14e6 / (n * sd), t2 = 4 * d, br = t1 - t2, nmax = 14e6 / (4 * d * sd);
+    var dosis = '<div class="tile"><span class="k">Dosificación</span><span class="v">' + fmt(Gp, Gp < 100 ? 1 : 0) + '</span><span class="u">g por reengrase</span>' +
+      (gun > 0 ? '<span class="s">≈ ' + fmt(Gp / gun, 0) + ' emboladas de ' + fmt(gun, 1) + ' g</span>' : '<span class="s">G<sub>p</sub> = 0,005·D·B</span>') + '</div>';
+    var datos = '<div class="datos"><h3>Datos ingresados</h3>' +
+      '<div class="drow"><span>' + TIPOS[tipo].n + '</span><button type="button" class="link" data-go="0">Cambiar</button></div>' +
+      '<div class="drow"><span>d × D × B = ' + fmt(d, 0) + ' × ' + fmt(D, 0) + ' × ' + fmt(B, 0) + ' mm</span><button type="button" class="link" data-go="1">Editar</button></div>' +
+      '<div class="drow"><span>' + fmt(n, 2) + ' rpm · ' + fmt(h, 0) + ' h/sem</span><button type="button" class="link" data-go="2">Editar</button></div>' +
+      '<div class="drow"><span>' + fmt(T, 1) + ' °C · F<sub>c</sub> ' + fmt(F.c.v, 2) + ' · F<sub>m</sub> ' + fmt(F.m.v, 2) + ' · F<sub>v</sub> ' + fmt(F.v.v, 2) + ' · F<sub>p</sub> ' + fmt(F.p.v, 2) + '</span><button type="button" class="link" data-go="3">Editar</button></div></div>';
+
+    if (br <= 0){
+      out.innerHTML = '<div class="tiles">' + dosis + '</div><div class="note bad">La fórmula no es válida con d = ' + fmt(d, 0) + ' mm a ' + fmt(n, 1) + ' rpm. Para ese d solo sirve bajo ' + fmt(nmax, 0) + ' rpm. Use el diagrama SKF (A = n·d<sub>m</sub>·b<sub>f</sub>) con el factor b<sub>f</sub> del catálogo.</div>' + datos;
+      bindEdit(); return;
+    }
+    var tf = Kr * br, Kt = F.t.v * F.c.v * F.m.v * F.v.v * F.p.v;
+    var taj = tf * Kt, capped = taj > CAP_H, tfin = Math.min(taj, CAP_H);
+    var sem = tfin / h, gsem = Gp / sem, gdia = gsem / 7;
+    var nu1 = n < 1000 ? 45000 * Math.pow(n, -0.83) * Math.pow(dm, -0.5) : 4500 * Math.pow(n, -0.5) * Math.pow(dm, -0.5);
+    var vis = [], tec = [];
+    if (isExample) vis.push(['ok', 'Datos de ejemplo (rodamiento 249/1060-B-MB, respuestas elegidas solo para ilustrar). No son mediciones de planta.']);
+    if (capped) vis.push(['', 'Rige el tope de 30 000 h (SKF): el cálculo da ' + fmt(taj, 0) + ' h. A velocidades bajas el intervalo lo fijan la suciedad, el agua, el sellado y el estado de la grasa. Confirme con análisis de grasa.']);
+    if (T > 70) vis.push(['', 'Sobre 70 °C: verifique que el límite de temperatura de la grasa (código DIN 51825) cubra la operación.']);
+    if (sem < 1) vis.push(['bad', 'El intervalo es menor que una semana (' + fmt(sem * 7, 1) + ' días). Considere lubricación automática.']);
+    tec.push('En este criterio, el mejor caso de F<sub>c</sub>·F<sub>m</sub>·F<sub>v</sub>·F<sub>p</sub> es ' + fmt(0.729, 3) + ', no 1,0: acorta el intervalo aun en condiciones ideales.');
+    tec.push('ν<sub>1</sub> requerida ≈ ' + fmt(nu1, 0) + ' mm²/s a temperatura de operación (referencia, no verificada). Si la viscosidad del aceite base de la grasa es menor, κ &lt; 1 y conviene grasa con aditivos EP/AW.');
+    if ($('tmet').value === 'tabla') tec.push('El criterio por escalones asigna 0,5 desde 66 °C, mientras SKF mantiene F<sub>t</sub> = 1 hasta 70 °C.');
+    var anios = sem >= 52 ? ' · ≈ ' + fmt(sem / 52.1429, 1) + ' años' : '';
+
+    out.innerHTML =
+      '<div class="tiles">' +
+      '<div class="tile"><span class="k">Frecuencia</span><span class="v">' + fmt(sem, 1) + '</span><span class="u">semanas entre reengrases' + (capped ? ' (tope)' : '') + '</span><span class="s">' + fmt(tfin, 0) + ' h de operación' + anios + '</span></div>' +
+      dosis + '</div>' +
+      '<dl class="kv"><dt>Consumo medio</dt><dd>' + fmt(gsem, 2) + ' g/sem · ' + fmt(gdia, 2) + ' g/día</dd>' +
+      '<dt>K<sub>total</sub></dt><dd>' + fmt(Kt, 3) + '</dd>' +
+      '<dt>Intervalo base t<sub>f</sub></dt><dd>' + fmt(tf, 0) + ' h</dd>' +
+      '<dt>Intervalo ajustado t<sub>aj</sub></dt><dd>' + fmt(taj, 0) + ' h</dd></dl>' +
+      (vis.length ? '<div class="notes">' + vis.map(function(x){ return '<div class="note ' + x[0] + '">' + x[1] + '</div>'; }).join('') + '</div>' : '') +
+      datos +
+      '<details><summary>Ver cálculo paso a paso</summary><ol class="steps">' +
+      '<li><strong>Dosificación</strong> (D y B en mm, resultado en g)<span class="f">G_p = 0,005 · D · B = 0,005 × ' + fmt(D, 0) + ' × ' + fmt(B, 0) + ' = ' + fmt(Gp, 1) + ' g</span></li>' +
+      '<li><strong>Intervalo base</strong> (n en rpm, d en mm; K_r = ' + Kr + ' para ' + TIPOS[tipo].n.toLowerCase() + ')' +
+        '<span class="f">√d = √' + fmt(d, 0) + ' = ' + fmt(sd, 3) + '</span>' +
+        '<span class="f">14·10⁶ / (n·√d) = 14·10⁶ / (' + fmt(n, 2) + ' × ' + fmt(sd, 3) + ') = ' + fmt(t1, 0) + ' h</span>' +
+        '<span class="f">4·d = 4 × ' + fmt(d, 0) + ' = ' + fmt(t2, 0) + ' h</span>' +
+        '<span class="f">t_f = ' + Kr + ' × (' + fmt(t1, 0) + ' − ' + fmt(t2, 0) + ') = ' + fmt(tf, 0) + ' h</span></li>' +
+      '<li><strong>Factores asignados</strong>' +
+        '<span class="f">F_t = ' + fmt(F.t.v, 3) + ' · ' + fmt(T, 1) + ' °C</span>' +
+        '<span class="f">F_c = ' + fmt(F.c.v, 2) + ' · ' + F.c.why + '</span>' +
+        '<span class="f">F_m = ' + fmt(F.m.v, 2) + ' · ' + F.m.why + '</span>' +
+        '<span class="f">F_v = ' + fmt(F.v.v, 2) + ' · ' + F.v.why + '</span>' +
+        '<span class="f">F_p = ' + fmt(F.p.v, 2) + ' · ' + F.p.why + '</span>' +
+        '<span class="f">K_total = ' + fmt(F.t.v, 3) + ' × ' + fmt(F.c.v, 2) + ' × ' + fmt(F.m.v, 2) + ' × ' + fmt(F.v.v, 2) + ' × ' + fmt(F.p.v, 2) + ' = ' + fmt(Kt, 4) + '</span></li>' +
+      '<li><strong>Intervalo ajustado y tope</strong>' +
+        '<span class="f">t_aj = t_f × K_total = ' + fmt(tf, 0) + ' × ' + fmt(Kt, 4) + ' = ' + fmt(taj, 0) + ' h</span>' +
+        '<span class="f">t = mín(t_aj ; 30.000 h) = ' + fmt(tfin, 0) + ' h</span></li>' +
+      '<li><strong>Semanas y consumo</strong> (' + fmt(h, 0) + ' h/sem)' +
+        '<span class="f">semanas = ' + fmt(tfin, 0) + ' / ' + fmt(h, 0) + ' = ' + fmt(sem, 2) + '</span>' +
+        '<span class="f">consumo = ' + fmt(Gp, 1) + ' g / ' + fmt(sem, 2) + ' sem = ' + fmt(gsem, 2) + ' g/sem</span></li>' +
+      '</ol></details>' +
+      '<details><summary>Notas técnicas</summary><div class="notes">' + tec.map(function(x){ return '<div class="note">' + x + '</div>'; }).join('') + '</div></details>' +
+      '<details><summary>Resumen para copiar</summary><textarea id="resumen" readonly></textarea><div class="actions" style="margin-top:8px"><button type="button" id="copiar" class="primary">Copiar resumen</button></div><p class="hint" id="copmsg"></p></details>';
+
+    var resumen = [
+      'Relubricación de rodamiento (' + TIPOS[tipo].n + ')',
+      'd × D × B = ' + fmt(d, 0) + ' × ' + fmt(D, 0) + ' × ' + fmt(B, 0) + ' mm',
+      'n = ' + fmt(n, 2) + ' rpm · T = ' + fmt(T, 1) + ' °C · ' + fmt(h, 0) + ' h/sem',
+      'F_t ' + fmt(F.t.v, 3) + ' · F_c ' + fmt(F.c.v, 2) + ' · F_m ' + fmt(F.m.v, 2) + ' · F_v ' + fmt(F.v.v, 2) + ' · F_p ' + fmt(F.p.v, 2) + ' → K_total ' + fmt(Kt, 3),
+      'Frecuencia: cada ' + fmt(sem, 1) + ' semanas (' + fmt(tfin, 0) + ' h)' + (capped ? ', rige el tope de 30.000 h' : ''),
+      'Dosificación: ' + fmt(Gp, 1) + ' g por reengrase (' + fmt(gsem, 2) + ' g/sem)',
+      'Método: G_p = 0,005·D·B; t_f = K_r·[14·10^6/(n·√d) − 4d]; t_aj = t_f·K_total; tope 30.000 h (SKF)'
+    ].join('\n');
+    $('resumen').value = resumen;
+    $('copiar').addEventListener('click', function(){
+      var ta = $('resumen'), msg = $('copmsg');
+      function fallback(){ ta.focus(); ta.select(); msg.textContent = 'Texto seleccionado; use Copiar del sistema.'; }
+      try { navigator.clipboard.writeText(resumen).then(function(){ msg.textContent = 'Resumen copiado.'; }, fallback); }
+      catch (e) { fallback(); }
+    });
+    bindEdit();
+  }
+  function bindEdit(){
+    document.querySelectorAll('#out [data-go]').forEach(function(b){ b.addEventListener('click', function(){ go(+b.dataset.go, true); }); });
+  }
+
+  buildEditPanel();
+  go(0, false);
+})();
+</script>
+</body>
+</html>
